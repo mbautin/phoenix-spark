@@ -17,8 +17,8 @@ package com.simplymeasured.spark
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.NullWritable
-import org.apache.phoenix.mapreduce.PhoenixInputFormat
-import org.apache.phoenix.mapreduce.util.PhoenixConfigurationUtil
+import org.apache.phoenix.pig.PhoenixPigConfiguration
+import org.apache.phoenix.pig.hadoop.{PhoenixRecord, PhoenixInputFormat}
 import org.apache.phoenix.schema.PDataType
 import org.apache.phoenix.util.ColumnInfo
 import org.apache.spark._
@@ -29,20 +29,24 @@ import org.apache.spark.sql.catalyst.types._
 import org.apache.spark.sql.{SQLContext, SchemaRDD}
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
                  predicate: Option[String] = None, @transient conf: Configuration)
-  extends RDD[PhoenixRecordWritable](sc, Nil) with Logging {
+  extends RDD[PhoenixRecord](sc, Nil) with Logging {
 
   @transient lazy val phoenixConf = {
     getPhoenixConfiguration
   }
 
-  val phoenixRDD = sc.newAPIHadoopRDD(phoenixConf,
-    classOf[PhoenixInputFormat[PhoenixRecordWritable]],
+  @transient lazy val selectColumnMetadataList: Seq[ColumnInfo] = {
+    new PhoenixPigConfiguration(phoenixConf).getSelectColumnMetadataList.asScala
+  }
+
+  val phoenixRDD = sc.newAPIHadoopRDD[NullWritable, PhoenixRecord, PhoenixInputFormat](
+    phoenixConf,
+    classOf[PhoenixInputFormat],
     classOf[NullWritable],
-    classOf[PhoenixRecordWritable])
+    classOf[PhoenixRecord])
 
   override protected def getPartitions: Array[Partition] = {
     phoenixRDD.partitions
@@ -68,11 +72,11 @@ class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
     // This is just simply not serializable, so don't try, but clone it because
     // PhoenixConfigurationUtil mutates it.
     val config = new Configuration(conf)
+    val phoenixConfig = new PhoenixPigConfiguration(config)
 
-    PhoenixConfigurationUtil.setInputQuery(config, buildSql(table, columns, predicate))
-    PhoenixConfigurationUtil.setSelectColumnNames(config, columns.mkString(","))
-    PhoenixConfigurationUtil.setInputTableName(config, "\"" + table + "\"")
-    PhoenixConfigurationUtil.setInputClass(config, classOf[PhoenixRecordWritable])
+    phoenixConfig.setSelectStatement(buildSql(table, columns, predicate))
+    phoenixConfig.setSelectColumns(columns.mkString(","))
+    phoenixConfig.setTableName("\"" + table + "\"")
 
     config
   }
@@ -87,23 +91,22 @@ class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
   }
 
   def toSchemaRDD(sqlContext: SQLContext): SchemaRDD = {
-    val columnList = PhoenixConfigurationUtil.getSelectColumnMetadataList(new Configuration(phoenixConf)).asScala
 
     // The Phoenix ColumnInfo class is not serializable, but a Seq[String] is.
-    val columnNames: Seq[String] = columnList.map(ci => {
+    val columnNames: Seq[String] = selectColumnMetadataList.map(ci => {
       ci.getDisplayName
     })
 
-    val structFields = phoenixSchemaToCatalystSchema(columnList)
+    val structFields = phoenixSchemaToCatalystSchema(selectColumnMetadataList)
 
     sqlContext.applySchema(map(pr => {
-      val values = pr.resultMap
+      val values = pr.getValues.asScala.toIndexedSeq
 
       val r = new GenericMutableRow(values.size)
 
       var i = 0
       for (columnName <- columnNames) {
-        r.update(i, values(columnName))
+        r.update(i, values(i))
 
         i += 1
       }

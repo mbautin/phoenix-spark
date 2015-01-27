@@ -18,13 +18,13 @@
     <scala.binary.version>2.10</scala.binary.version>
 
     <spark.version>1.2.0</spark.version>
-    <phoenix.version>4.3.0-SNAPSHOT</phoenix.version>
+    <phoenix.version>4.2.2</phoenix.version>
     <pig.version>0.13.0</pig.version>
 
-    <hbase.version>0.98.4</hbase.version>
-    <hbase.client.version>0.98.4-hadoop2</hbase.client.version>
-    <hadoop.core.version>2.5.2</hadoop.core.version>
-    <hadoop.version>2.5.2</hadoop.version>
+    <hbase.version>0.98.9</hbase.version>
+    <hbase.client.version>${hbase.version}-hadoop2</hbase.client.version>
+    <hadoop.core.version>2.5.0-cdh4.3.0</hadoop.core.version>
+    <hadoop.version>2.5.0-cdh4.3.0</hadoop.version>
     <zookeeper.version>3.4.5</zookeeper.version>
   </properties>
 
