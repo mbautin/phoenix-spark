@@ -87,7 +87,7 @@ object LoadTweetTermCounts {
     hadoopConf.set("hbase.zookeeper.quorum", "10.1.1.153")
     val phoenixPigConfiguration = new PhoenixPigConfiguration(hadoopConf)
     phoenixPigConfiguration.setServerName("10.1.1.153")
-    phoenixPigConfiguration.setTableName("tweets_15min_counts")
+    phoenixPigConfiguration.setTableName("tweets_15sec_counts")
     phoenixPigConfiguration.setSchemaType(SchemaType.QUERY)
 
     termCounts.map { case ((ts, term, place, country), count) =>
